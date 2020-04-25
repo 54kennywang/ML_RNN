@@ -1,5 +1,11 @@
 # https://pytorch.org/tutorials/intermediate/char_rnn_classification_tutorial.html
 # we’ll train on a few thousand surnames from 18 languages of origin, and predict which language a name is from based on the spelling
+
+# Todo
+# Add more linear layers
+# Try the nn.LSTM and nn.GRU layers
+# Combine multiple of these RNNs as a higher level network
+
 from io import open
 import glob
 import os
@@ -15,7 +21,6 @@ import matplotlib.ticker as ticker
 
 def findFiles(path): return glob.glob(path)
 
-
 all_letters = string.ascii_letters + " .,;'"
 n_letters = len(all_letters)
 
@@ -27,7 +32,7 @@ def unicodeToAscii(s):
         and c in all_letters
     )
 
-print(unicodeToAscii('Ślusàrski'))
+print("ASCII for Ślusàrski:", unicodeToAscii('Ślusàrski'))
 
 # Build the category_lines dictionary, a list of names per language
 category_lines = {} # (language: [name1, name2, ...]) dictionary
@@ -91,13 +96,13 @@ n_hidden = 128 # define hidden_size
 rnn = RNN(n_letters, n_hidden, n_categories)  # instantiate RNN we built
 
 input = letterToTensor('A')
-hidden =torch.zeros(1, n_hidden)
+hidden = torch.zeros(1, n_hidden)
 output, next_hidden = rnn(input, hidden) # same input as forward()
 
 input = lineToTensor('Albert') # For the sake of efficiency we don’t want to be creating a new Tensor for every step
 hidden = torch.zeros(1, n_hidden)
 output, next_hidden = rnn(input[0], hidden)
-print(output) # output is a <1 x n_categories> Tensor, where every item is the likelihood of that category (higher is more likely).
+print("RNN first layer output for A:", output) # output is a <1 x n_categories> Tensor, where every item is the likelihood of that category (higher is more likely).
 
 # translate softmax output to category
 def categoryFromOutput(output):
@@ -246,8 +251,3 @@ predict('Satoshi')
 model_path = './model.txt'
 torch.save(rnn, model_path)
 # rnn = torch.load(model_path)
-
-# Todo
-# Add more linear layers
-# Try the nn.LSTM and nn.GRU layers
-# Combine multiple of these RNNs as a higher level network
