@@ -92,11 +92,11 @@ class RNN(nn.Module):
         self.i2o = nn.Linear(input_size + hidden_size, output_size) # output layer of size (input_size + hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
 
-    def forward(self, input, hidden):
-        combined = torch.cat((input, hidden), 1) # Concatenates the given tensors (all tensors have the same shape) in the given direction
-        hidden = self.i2h(combined)
-        output = self.i2o(combined)
-        output = self.softmax(output)
+    def forward(self, input, hidden): # input [1, 57]; hidden [1, 128]
+        combined = torch.cat((input, hidden), 1) # Concatenates the given tensors (all tensors have the same shape) in the given direction, combined [1, 185]
+        hidden = self.i2h(combined) # hidden [1, 128]
+        output = self.i2o(combined) # output [1, 18]
+        output = self.softmax(output) # output [1, 18]
         return output, hidden
 
     def initHidden(self): # we initialize as zeros for the first hidden layer
@@ -140,13 +140,13 @@ criterion = nn.NLLLoss() # The negative log likelihood loss. It is useful to tra
 
 learning_rate = 0.005 # If you set this too high, it might explode. If too low, it might not learn
 
-def train(category_tensor, line_tensor):
+def train(category_tensor, line_tensor): # category_tensor [1], line_tensor [nameLength, 1, 57]
     hidden = rnn.initHidden()
     rnn.zero_grad() # Sets gradients of all model parameters to zero.
     for i in range(line_tensor.size()[0]):
         output, hidden = rnn(line_tensor[i], hidden) # discard intermediate output, feed previous hidden to the next layer
 
-    loss = criterion(output, category_tensor) # output is the last output
+    loss = criterion(output, category_tensor) # output is the last output, output [1, 18] category_tensor [1]
     loss.backward()
 
     # Add parameters' gradients to their values, multiplied by learning rate
@@ -259,5 +259,5 @@ predict('Satoshi')
 
 
 model_path = './model.txt'
-torch.save(rnn, model_path)
+# torch.save(rnn, model_path)
 # rnn = torch.load(model_path)
