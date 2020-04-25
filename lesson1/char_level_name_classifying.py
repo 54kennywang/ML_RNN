@@ -1,6 +1,16 @@
 # https://pytorch.org/tutorials/intermediate/char_rnn_classification_tutorial.html
 # we’ll train on a few thousand surnames from 18 languages of origin, and predict which language a name is from based on the spelling
 
+
+"""
+        (discard)        (discard)           (final output)
+        output1           output2               outputN
+hidden     |     hidden     |           hidden     |       (don't care)
+------>[      ]--------->[      ]-----.....---->[      ]---------------->
+           |                |                      |
+        letter1          letter2                letterN
+"""
+
 # Todo
 # Add more linear layers
 # Try the nn.LSTM and nn.GRU layers
@@ -43,7 +53,7 @@ def readLines(filename):
     lines = open(filename, encoding='utf-8').read().strip().split('\n')
     return [unicodeToAscii(line) for line in lines]
 
-for filename in findFiles('data/names/*.txt'):
+for filename in findFiles('../data/names/*.txt'):
     category = os.path.splitext(os.path.basename(filename))[0]
     all_categories.append(category)
     lines = readLines(filename)
@@ -74,7 +84,7 @@ print(lineToTensor('Jones').size()) # [5, 1, 57], 57 = 26*2+5 " .,;'"
 
 
 class RNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size): # each char is of 57 long one-hot vector (output_size), output_size is n_categories for softmax
+    def __init__(self, input_size, hidden_size, output_size): # each char is of 57 long one-hot vector (input_size), output_size is n_categories for softmax
         super(RNN, self).__init__()
         self.hidden_size = hidden_size
 
