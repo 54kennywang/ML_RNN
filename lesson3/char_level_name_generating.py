@@ -1,46 +1,113 @@
-# https://pytorch.org/tutorials/intermediate/char_rnn_generation_tutorial.html
-# we input a category and output one letter at a time, rcurrently predicting characters to form language
+# https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
+# we will be teaching a neural network to translate from French to English
+from __future__ import unicode_literals, print_function, division
 from io import open
-import glob
-import os
 import unicodedata
 import string
+import re
+import random
 
-all_letters = string.ascii_letters + " .,;'-"
-n_letters = len(all_letters) + 1 # Plus EOS marker
+import torch
+import torch.nn as nn
+from torch import optim
+import torch.nn.functional as F
 
-def findFiles(path): return glob.glob(path)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Turn a Unicode string to plain ASCII, thanks to https://stackoverflow.com/a/518232/2809427
+# we will be representing each word in a language as a one-hot vector, We will however cheat a bit and trim the data to only use a few thousand words per language.
+SOS_token = 0
+EOS_token = 1
+class Lang:
+    def __init__(self, name):
+        self.name = name
+        self.word2index = {} # word → index
+        self.word2count = {}
+        self.index2word = {0: "SOS", 1: "EOS"} # index → word
+        self.n_words = 2  # Count SOS and EOS
+
+    def addSentence(self, sentence):
+        for word in sentence.split(' '):
+            self.addWord(word)
+
+    def addWord(self, word):
+        if word not in self.word2index:
+            self.word2index[word] = self.n_words
+            self.word2count[word] = 1
+            self.index2word[self.n_words] = word
+            self.n_words += 1
+        else:
+            self.word2count[word] += 1
+
+# Turn a Unicode string to plain ASCII
 def unicodeToAscii(s):
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
-        and c in all_letters
     )
 
-# Read a file and return a list with each item being Ascii version of the a line in the file
-def readLines(filename):
-    lines = open(filename, encoding='utf-8').read().strip().split('\n')
-    return [unicodeToAscii(line) for line in lines]
+# make everything lowercase, and trim most punctuation.
+def normalizeString(s):
+    s = unicodeToAscii(s.lower().strip()) # all leading and trailing whitespaces are removed from the string.
+    s = re.sub(r"([.!?])", r" \1", s)
+    s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    return s
 
-# Build the category_lines dictionary, a list of lines per category
-category_lines = {}
-all_categories = []
-for filename in findFiles('data/names/*.txt'):
-    category = os.path.splitext(os.path.basename(filename))[0]
-    all_categories.append(category)
-    lines = readLines(filename)
-    category_lines[category] = lines
+def readLangs(lang1, lang2, reverse=False):
+    print("Reading lines...")
+    # Read the file and split into lines
+    lines = open('/Users/kennywang/Documents/study/self/ML_RNN/data/%s-%s.txt' % (lang1, lang2), encoding='utf-8').read().strip().split('\n')
 
-n_categories = len(all_categories)
+    # Split every line into pairs and normalize
+    pairs = [[normalizeString(s) for s in l.split('\t')] for l in lines] # [[eng0, fra0], [eng1, fra1]]
 
-if n_categories == 0:
-    raise RuntimeError('Data not found. Make sure that you downloaded data '
-        'from https://download.pytorch.org/tutorial/data.zip and extract it to '
-        'the current directory.')
+    # Reverse pairs, make Lang instances
+    if reverse:
+        pairs = [list(reversed(p)) for p in pairs]
+        input_lang = Lang(lang2)
+        output_lang = Lang(lang1)
+    else:
+        input_lang = Lang(lang1)
+        output_lang = Lang(lang2)
 
-print('# categories:', n_categories)
-print('category_lines["Chinese"]:\n', category_lines["Chinese"])
-print(unicodeToAscii("O'Néàl"))
+    return input_lang, output_lang, pairs
 
+
+# Since there are a lot of example sentences and we want to train something quickly, we’ll trim the data set to only relatively short and simple sentences.
+# Here the maximum length is 10 words (that includes ending punctuation)
+# and we’re filtering to sentences that translate to the form “I am” or “He is” etc. (accounting for apostrophes replaced earlier).
+
+MAX_LENGTH = 10
+eng_prefixes = (
+    "i am ", "i m ",
+    "he is", "he s ",
+    "she is", "she s ",
+    "you are", "you re ",
+    "we are", "we re ",
+    "they are", "they re "
+)
+def filterPair(p):
+    return len(p[0].split(' ')) < MAX_LENGTH and \
+        len(p[1].split(' ')) < MAX_LENGTH and \
+        p[1].startswith(eng_prefixes)
+
+def filterPairs(pairs):
+    return [pair for pair in pairs if filterPair(pair)]
+
+def prepareData(lang1, lang2, reverse=False):
+    input_lang, output_lang, pairs = readLangs(lang1, lang2, reverse)
+    print("Read %s sentence pairs" % len(pairs))
+    pairs = filterPairs(pairs)
+    print("Trimmed to %s sentence pairs" % len(pairs))
+    print("Counting words...")
+    for pair in pairs:
+        input_lang.addSentence(pair[0])
+        output_lang.addSentence(pair[1])
+    print("Counted words:")
+    print(input_lang.name, input_lang.n_words)
+    print(output_lang.name, output_lang.n_words)
+    return input_lang, output_lang, pairs
+
+input_lang, output_lang, pairs = prepareData('eng', 'fra', True)
+print(random.choice(pairs))
+
+# https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#the-seq2seq-model
