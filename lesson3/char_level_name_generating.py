@@ -121,7 +121,7 @@ class EncoderRNN(nn.Module):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size
 
-        self.embedding = nn.Embedding(input_size, hidden_size)
+        self.embedding = nn.Embedding(input_size, hidden_size) # (dictionary_size, embedding_output_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
 
     def forward(self, input, hidden):
@@ -207,7 +207,7 @@ def indexesFromSentence(lang, sentence):
 def tensorFromSentence(lang, sentence):
     indexes = indexesFromSentence(lang, sentence)
     indexes.append(EOS_token)
-    return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1)
+    return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1) # [3, 5, 2] -> tensor([[3], [5], [2]])
 
 def tensorsFromPair(pair):
     input_tensor = tensorFromSentence(input_lang, pair[0])
