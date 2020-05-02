@@ -1,5 +1,16 @@
 # https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
 # we will be teaching a neural network to translate from French to English
+
+""" High level of seq2seq architecture, see details in picture.
+Language class (with SOS and EOS): word2index, index2word, number of words in that language, wordcount for each word (this means we need to know the entire language first, i.e. all the words that are present in English for EngLang and all the words that are present in French for FraLang)
+
+Construct training language class (EngLang), target language class (FraLang), list of (trainSentence, targetSentence) pair for training, i.e. [(“I am Kenny”, “Je suis Kenny”), (…, …)]
+Each iteration of training uses one (trainSentence, targetSentence) pair like (“I am Kenny”, “Je suis Kenny”), using EngLang and FraLang to convert word to index like ([1, 5, 7, 0], [3, 8, 4, 0]) (here 0 for EOS token), then use tensor version of the pair as training and targeting data, like feeding tensor([1, 5, 7, 0]), targeting tensor([3, 8, 4, 0]).
+Embed training data and one index each timestamp to train encoder like for timestamp=0, we feed tensor(embedded version of [1]) with init hidden input (zeros) to get hidden output h and actual output o (h and o could be the same), o maybe saved for attention model, h is used for next timestamp hidden input, then next training tensor and h, …, until we get hidden output of the last timestamp h_end.
+
+When we train decoder, hidden input is h_end from encoder, first input tensor is embedded SOS. If we use teacher forcing, we feed target tensor as the input for next timestamp regardless of the output of the first timestamp, if we don’t use teacher forcing, we use the output of the first timestamp to be the input of the next timestamp (which is the way when we do prediction because we do not have a ground truth target). When we finish training encoder and decoder, we use them to predict.
+"""
+
 from __future__ import unicode_literals, print_function, division
 from io import open
 import unicodedata
@@ -19,7 +30,8 @@ import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# we will be representing each word in a language as a one-hot vector, We will however cheat a bit and trim the data to only use a few thousand words per language.
+# we will be representing each word in a language as a one-hot vector,
+# We will however cheat a bit and trim the data to only use a few thousand words per language.
 SOS_token = 0
 EOS_token = 1
 class Lang:
@@ -122,11 +134,11 @@ class EncoderRNN(nn.Module):
         self.hidden_size = hidden_size
 
         self.embedding = nn.Embedding(input_size, hidden_size) # (dictionary_size, embedding_output_size)
-        self.gru = nn.GRU(hidden_size, hidden_size)
+        self.gru = nn.GRU(hidden_size, hidden_size) # (inputSize, hiddenSize)
 
     def forward(self, input, hidden):
-        embedded_input = self.embedding(input).view(1, 1, -1)
-        output, hidden = self.gru(embedded_input, hidden)
+        embedded_input = self.embedding(input).view(1, 1, -1) # (seq_len=1, batch=1, hiddenSize=256)
+        output, hidden = self.gru(embedded_input, hidden) # (seq_len=1, batch=1, num_directions*hidden_size=1*256), (num_layers*num_directions=1*1, batch=1, hidden_size=256)
         return output, hidden
 
     def initHidden(self):
